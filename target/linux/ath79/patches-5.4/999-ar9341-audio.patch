@@ -1,0 +1,20 @@
+--- a/sound/soc/Kconfig
++++ b/sound/soc/Kconfig
+@@ -45,6 +45,7 @@ source "sound/soc/amd/Kconfig"
+ source "sound/soc/atmel/Kconfig"
+ source "sound/soc/au1x/Kconfig"
+ source "sound/soc/bcm/Kconfig"
++source "sound/soc/ath79/Kconfig"
+ source "sound/soc/cirrus/Kconfig"
+ source "sound/soc/dwc/Kconfig"
+ source "sound/soc/fsl/Kconfig"
+--- a/sound/soc/Makefile
++++ b/sound/soc/Makefile
+@@ -25,6 +25,7 @@ obj-$(CONFIG_SND_SOC_ACPI) += snd-soc-acpi.o
+ obj-$(CONFIG_SND_SOC)	+= amd/
+ obj-$(CONFIG_SND_SOC)	+= atmel/
+ obj-$(CONFIG_SND_SOC)	+= au1x/
++obj-$(CONFIG_SND_SOC)	+= ath79/
+ obj-$(CONFIG_SND_SOC)	+= bcm/
+ obj-$(CONFIG_SND_SOC)	+= cirrus/
+ obj-$(CONFIG_SND_SOC)	+= dwc/
