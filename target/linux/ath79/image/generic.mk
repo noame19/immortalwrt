@@ -1873,7 +1873,12 @@ define Device/pisen_wpr003n
   SOC := ar9341
   DEVICE_VENDOR := PISEN
   DEVICE_MODEL := WPR003N
-  DEVICE_PACKAGES := kmod-usb-core kmod-usb2
+  DEVICE_PACKAGES := kmod-usb-core kmod-usb2 \
+	kmod-sound-soc-ath79 \
+	kmod-sound-soc-ath79-i2s \
+	kmod-sound-soc-ath79-pcm \
+	kmod-sound-soc-ath79-ak4430 \
+	kmod-sound-soc-qca-pisen-wpr003n
   TPLINK_HWID := 0x08410008
 endef
 TARGET_DEVICES += pisen_wpr003n
