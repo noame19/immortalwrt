@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-2.0-or-later OR MIT
+#
+# ASoC audio support for Qualcomm Atheros ath79 (AR934x etc.)
+# Adapted from syb999/openwrt-15.05 for Linux 5.4 / ImmortalWrt 21.02
+#
+
+config SND_SOC_ATH79_SOC
+	tristate "SoC audio support for Atheros ath79"
+	depends on ARCH_ATH79 || COMPILE_TEST
+	help
+	  Say Y or M if you want to use the ASoC audio drivers developed
+	  for the QCA AR934x (and compatible) SoCs. This includes the I2S
+	  controller, the audio PLL and the DMA glue used to implement
+	  the PCM playback/capture path on devices such as the
+	  PISEN WPR003N portable router.
+
+if SND_SOC_ATH79_SOC
+
+config SND_SOC_ATH79_I2S
+	tristate "Atheros ath79 I2S controller driver"
+	depends on SND_SOC_ATH79_SOC
+	help
+	  Say Y or M to enable the on-chip I2S controller driver for
+	  the AR934x family.
+
+config SND_SOC_ATH79_MBOX
+	tristate "Atheros ath79 MBOX (DMA descriptor IRQ) driver"
+	depends on SND_SOC_ATH79_SOC
+	help
+	  Say Y or M to enable the MBOX / DMA descriptor IRQ handler used
+	  by the internal codec (SPDIF / MIC capture path) on AR934x.
+
+config SND_SOC_ATH79_PCM
+	tristate "Atheros ath79 PCM platform driver"
+	depends on SND_SOC_ATH79_SOC
+	select SND_SOC_ATH79_MBOX
+	help
+	  Say Y or M to enable the PCM platform glue that binds the I2S
+	  controller / AK4430 codec / DMA together.
+
+config SND_SOC_ATH79_INTERNAL_CODEC
+	tristate "Atheros ath79 internal SPDIF/ADC codec driver"
+	depends on SND_SOC_ATH79_SOC
+	help
+	  Say Y or M for the AR934x internal SPDIF transmitter and ADC
+	  stub driver.
+
+config SND_SOC_ATH79_AK4430
+	tristate "AKM AK4430 I2S DAC driver (vendored, HW-mode)"
+	depends on SND_SOC_ATH79_SOC
+	help
+	  Say Y or M to enable the AKM AK4430 codec driver vendored
+	  into the ath79 audio subsystem. Linux 5.4 mainline does not
+	  include an AK4430 driver (it was merged in v6.11), so this
+	  local copy lives under target/linux/ath79/files/.
+
+config SND_SOC_QCA_PISEN_WPR003N
+	tristate "SoC Audio support for PISEN WPR003N"
+	depends on SND_SOC_ATH79_SOC
+	select SND_SOC_ATH79_I2S
+	select SND_SOC_ATH79_PCM
+	select SND_SOC_ATH79_AK4430
+	help
+	  Say Y or M to enable audio support for the PISEN WPR003N
+	  portable router (3.5 mm jack output via AK4430 over I2S).
+
+endif
