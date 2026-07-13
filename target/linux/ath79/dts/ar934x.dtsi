@@ -218,6 +218,57 @@
 
 		status = "disabled";
 	};
+
+	/*
+	 * Audio subsystem for the AR934x family.
+	 *
+	 * The ASoC audio drivers live in
+	 *     target/linux/ath79/files/sound/soc/ath79/
+	 * and are wired into the kernel build via
+	 *     target/linux/ath79/patches-5.4/999-ar9341-audio.patch
+	 *
+	 * All nodes have status = "disabled" by default; board files
+	 * flip them to "okay".
+	 */
+
+	pll_audio: audio-pll@18116200 {
+		compatible = "qca,ar9341-audio-pll", "syscon";
+		reg = <0x18116200 0x10>;
+		clocks = <&ref>;
+		clock-names = "ref";
+		#clock-cells = <0>;
+		status = "disabled";
+	};
+
+	mbox: mbox@180a0000 {
+		compatible = "qca,ar9341-mbox", "syscon";
+		reg = <0x180a0000 0x6c>;
+		interrupts = <5>;
+		interrupt-parent = <&cpuintc>;
+		status = "disabled";
+	};
+
+	stereo: stereo@180b0000 {
+		compatible = "qca,ar9341-stereo", "syscon";
+		reg = <0x180b0000 0x18>;
+		clocks = <&pll_audio>, <&ref>;
+		clock-names = "i2s", "ref";
+		resets = <&rst 21>;
+		reset-names = "i2s";
+		#sound-dai-cells = <0>;
+		status = "disabled";
+	};
+
+	internal_codec: internal-codec {
+		compatible = "qca,ar9341-internal-codec";
+		status = "disabled";
+	};
+
+	audio_pcm: audio-pcm {
+		compatible = "qca,ar9341-pcm";
+		status = "disabled";
+	};
+	};
 };
 
 &mdio0 {
