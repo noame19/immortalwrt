@@ -112,3 +112,47 @@
 	status = "okay";
 	mtd-cal-data = <&art 0x1000>;
 };
+
+&pll_audio {
+	status = "okay";
+};
+
+&mbox {
+	status = "okay";
+};
+
+&stereo {
+	status = "okay";
+};
+
+&internal_codec {
+	status = "okay";
+};
+
+&audio_pcm {
+	status = "okay";
+};
+
+/*
+ * AKM AK4430 codec (HW-mode, no I2C, see syb999's mach-pisen-wpr003n.c).
+ * Wired to the I2S bus via GPIOs 11..14 (multiplexed onto
+ * AR934X_GPIO_OUT_MUX_I2S_*).
+ */
+ak4430: ak4430-codec {
+	compatible = "qca,ak4430";
+	status = "okay";
+};
+
+/*
+ * The ASoC machine card binds the AR9341 I2S controller to the
+ * AK4430 codec. The DT phandles are resolved by the qca-pisen-wpr003n
+ * machine driver at probe time.
+ */
+sound: sound {
+	compatible = "pisen,wpr003n-snd", "qca,ar9341";
+
+	cpu-dai = <&stereo>;
+	codec-dai = <&ak4430>;
+
+	model = "pisen-wpr003n";
+};
