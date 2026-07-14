@@ -18,6 +18,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 #include "ath79-i2s-pll.h"
 
@@ -110,12 +111,23 @@ static int ath79_audio_pll_probe(struct platform_device *pdev)
 	if (!pll)
 		return -ENOMEM;
 
+	/*
+	 * Three-tier fallback: phandle → self-as-syscon → parent.
+	 * The audio-pll@18116200 node carries `compatible = "qca,
+	 * ar9341-audio-pll", "syscon"`, so the kernel's generic syscon
+	 * driver registers a regmap for it. syscon_node_to_regmap()
+	 * picks that up. If the syscon driver hasn't probed yet on a
+	 * cold boot, return -EPROBE_DEFER for the kernel to retry.
+	 */
 	pll->regmap = syscon_regmap_lookup_by_phandle(np, "regmap");
-	if (IS_ERR(pll->regmap)) {
-		/* Fallback: the parent might be the syscon directly. */
+	if (IS_ERR(pll->regmap))
+		pll->regmap = syscon_node_to_regmap(np);
+	if (IS_ERR(pll->regmap))
 		pll->regmap = device_node_to_regmap(np->parent);
-		if (IS_ERR(pll->regmap))
-			return PTR_ERR(pll->regmap);
+	if (IS_ERR(pll->regmap)) {
+		if (PTR_ERR(pll->regmap) == -ENODEV)
+			return -EPROBE_DEFER;
+		return PTR_ERR(pll->regmap);
 	}
 
 	init.name = "ath79-audio-pll";

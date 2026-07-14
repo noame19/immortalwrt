@@ -33,6 +33,7 @@
 #include <linux/regmap.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/mfd/syscon.h>
 
 #include <sound/core.h>
 #include <sound/initval.h>
@@ -198,18 +199,35 @@ static int ath79_i2s_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, priv);
 
 	/*
-	 * Register access: accept either a phandle to a syscon in DTS
-	 * or direct "reg" property. For the WPR003N we use the
-	 * phandle path because the parent bus already maps the APB
-	 * window.
+	 * Register access: three-tier fallback chain because the DTS
+	 * pattern depends on whether the board declared us as a
+	 * standalone syscon child or as part of a wider syscon window.
+	 *
+	 *   1. phandle: the node has a `regmap = <&foo>` property that
+	 *      points to a separately-declared syscon node (preferred
+	 *      on arches like ipq807x).
+	 *   2. self:    the node is itself a syscon (its `compatible`
+	 *      ends with "syscon"), as on the AR9341 in WPR003N. The
+	 *      kernel's "syscon" driver will register a regmap for it
+	 *      during its own probe, so on a cold-boot race we may need
+	 *      to defer and retry.
+	 *   3. parent:  legacy layout where the parent bus holds the
+	 *      regmap. Only useful if no syscon at all is involved.
 	 */
 	priv->regmap = syscon_regmap_lookup_by_phandle(np, "regmap");
 	if (IS_ERR(priv->regmap))
+		priv->regmap = syscon_node_to_regmap(np);
+	if (IS_ERR(priv->regmap))
 		priv->regmap = device_node_to_regmap(np->parent);
 
-	if (IS_ERR(priv->regmap))
+	if (IS_ERR(priv->regmap)) {
+		/* syscon driver hasn't probed yet on a cold boot — ask
+		 * the kernel to retry once it shows up. */
+		if (PTR_ERR(priv->regmap) == -ENODEV)
+			return -EPROBE_DEFER;
 		return dev_err_probe(dev, PTR_ERR(priv->regmap),
 				     "no regmap available\n");
+	}
 
 	if (!of_property_read_u32(np, "mode", &mode))
 		priv->mode = mode;

@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/mfd/syscon.h>
 
 #include <sound/soc.h>
 
@@ -90,12 +91,28 @@ static int ath79_mbox_probe(struct platform_device *pdev)
 	priv->dev = &pdev->dev;
 	platform_set_drvdata(pdev, priv);
 
+	/*
+	 * The mbox@180a0000 node on the AR9341 declares
+	 * `compatible = "qca,ar9341-mbox", "syscon"`, so the kernel's
+	 * generic syscon driver registers a regmap for the very same
+	 * node. syscon_regmap_lookup_by_phandle() only looks for a
+	 * `regmap = <&phandle>` property, which the WPR003N DTS does
+	 * not provide, so fall through to syscon_node_to_regmap() to
+	 * pick up the self-registered regmap. -EPROBE_DEFER lets the
+	 * kernel retry if the syscon driver hasn't probed yet on a
+	 * cold boot.
+	 */
 	priv->regmap = syscon_regmap_lookup_by_phandle(np, "regmap");
 	if (IS_ERR(priv->regmap))
-		priv->regmap = device_node_to_regmap(np->parent);
+		priv->regmap = syscon_node_to_regmap(np);
 	if (IS_ERR(priv->regmap))
+		priv->regmap = device_node_to_regmap(np->parent);
+	if (IS_ERR(priv->regmap)) {
+		if (PTR_ERR(priv->regmap) == -ENODEV)
+			return -EPROBE_DEFER;
 		return dev_err_probe(&pdev->dev, PTR_ERR(priv->regmap),
 				     "no regmap\n");
+	}
 
 	priv->irq = platform_get_irq(pdev, 0);
 	if (priv->irq <= 0)
