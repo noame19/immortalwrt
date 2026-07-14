@@ -83,9 +83,15 @@ static int pisen_wpr003n_probe(struct platform_device *pdev)
 	return ret;
 }
 
+/*
+ * Match table: two rows so the DT's two compatible strings
+ * (`"pisen,wpr003n-snd", "qca,ar9341"` in the WPR003N sound node)
+ * each get a clean match without falling into the next struct
+ * field via designated-initializer tricks.
+ */
 static const struct of_device_id pisen_wpr003n_of_match[] = {
-	{ .compatible = "pisen,wpr003n-snd", "qca,ar9341" },
-	{ .compatible = "pisen,wpr003n-audio" },
+	{ .compatible = "pisen,wpr003n-snd" },
+	{ .compatible = "qca,ar9341" },
 	{ /* sentinel */ },
 };
 MODULE_DEVICE_TABLE(of, pisen_wpr003n_of_match);
