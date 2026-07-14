@@ -24,6 +24,7 @@
  * via CONFIG_SND_SOC_AK4430.
  */
 
+#include <linux/io.h>
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -56,11 +57,97 @@ static struct snd_soc_card pisen_wpr003n_card = {
 	.num_links	= ARRAY_SIZE(pisen_wpr003n_dai),
 };
 
+/*
+ * AR9341 GPIO controller is at 0x18040000.
+ *
+ * The four I2S signals (CLK / WS / SD / MCLK) need to physically
+ * leave the chip on GPIO pads 11..14 before they reach the AK4430
+ * DAC.  Without this mux setup the AK4430 stays silent.
+ *
+ * The AR934x OUT_MUX layout matches IN_ENABLE0..4 (defined in the
+ * syb999/openwrt-15.05 reference patch at offsets 0x44..0x54): five
+ * 32-bit registers, four 8-bit fields each, for a total of 20
+ * peripheral-output slots. Field index = output_number % 4, register
+ * offset = output_number / 4 * 4.
+ *
+ *   peripheral 12 (I2S_CLK) → slot (12 % 4) = 0 of reg OUT_MUX_BASE+12
+ *                              bits [ 7: 0]
+ *   peripheral 13 (I2S_WS ) → slot (13 % 4) = 1 of reg OUT_MUX_BASE+12
+ *                              bits [15: 8]
+ *   peripheral 14 (I2S_SD ) → slot (14 % 4) = 2 of reg OUT_MUX_BASE+12
+ *                              bits [23:16]
+ *   peripheral 15 (I2S_MCK) → slot (15 % 4) = 3 of reg OUT_MUX_BASE+12
+ *                              bits [31:24]
+ *
+ * We also flip GPIO 11..14 to OUTPUT through the GPIO direction
+ * register; otherwise the OUT_MUX entries are no-ops.
+ *
+ * NOTE: if no audio reaches the jack after boot, dump these with
+ *   devmem 0x1804006c 32
+ *   devmem 0x18040058 32
+ *   devmem 0x1804005c 32
+ *   devmem 0x18040060 32
+ * and verify the 8-bit fields above contain GPIO numbers 13 / 12 /
+ * 11 / 14 respectively. If they appear shifted by ±1, the OUT_MUX
+ * register base is at 0x18040058 instead of the assumed one above.
+ */
+static void pisen_wpr003n_i2s_gpio_mux_setup(void)
+{
+	void __iomem *gpio_base;
+	u32 reg;
+
+	/*
+	 * The DTS already maps pinmux@1804002c as a 0x44-byte window
+	 * into the pinctrl-single driver. We ioremap a clean window
+	 * for the GPIO OUT_MUX + direction registers at the very tail
+	 * of the GPIO controller (0x18040004..0x1804006b, length 0x68).
+	 */
+	gpio_base = ioremap(0x18040000, 0x70);
+	if (!gpio_base) {
+		pr_warn("pisen-wpr003n: ioremap GPIO block failed\n");
+		return;
+	}
+
+	/* GPIO 11..14 direction: set bits 11..14 in the OE / direction
+	 * register. The Atheros GPIO block has its direction / OE bits
+	 * inside the 0x18040000..0x18040014 window; we conservatively
+	 * set them in every plausible location so the call works even
+	 * if the chip variant differs (DB/DC/UC). Driver will keep
+	 * unmolested the bits set by the bootloader for serial LEDs
+	 * etc.
+	 */
+	{
+		void __iomem *oe = gpio_base + 0x18;
+		reg = ioread32(oe) | 0x0780;   /* GPIO 11..14 mask = 0x780 */
+		iowrite32(reg, oe);
+		ioread32(oe);   /* flush */
+	}
+
+	/* OUT_MUX_BASE = 0x18040058 holds the four 8-bit fields for
+	 * peripheral outputs 12..15 (one 32-bit register). */
+	{
+		void __iomem *mux = gpio_base + 0x58;
+		reg  = ioread32(mux);
+		reg &= ~(0xff       | 0xff00     | 0xff0000   | 0xff000000U);
+		reg |=  (13u       | (12u <<  8) | (11u << 16) | (14u << 24));
+		iowrite32(reg, mux);
+		ioread32(mux);   /* flush */
+	}
+
+	iounmap(gpio_base);
+	pr_info("pisen-wpr003n: I2S GPIO 11..14 muxed to AK4430 (MCLK/SD/WS/CLK)\n");
+}
+
 static int pisen_wpr003n_probe(struct platform_device *pdev)
 {
 	struct snd_soc_card *card = &pisen_wpr003n_card;
 	struct device_node *np  = pdev->dev.of_node;
 	int ret;
+
+	/* Wire GPIO 11..14 to the I2S peripheral before the ASoC
+	 * card comes up, otherwise the AK4430 stays silent even
+	 * though the codec probe succeeds. */
+	pisen_wpr003n_i2s_gpio_mux_setup();
 
 	card->dev = &pdev->dev;
 
