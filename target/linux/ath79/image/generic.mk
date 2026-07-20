@@ -1035,6 +1035,16 @@ define Device/pisen_wmm003n
 endef
 TARGET_DEVICES += pisen_wmm003n
 
+define Device/pisen_wpr003n
+  $(Device/tplink-16mlzma)
+  SOC := ar9341
+  DEVICE_VENDOR := PISEN
+  DEVICE_MODEL := WPR003N
+  DEVICE_PACKAGES := kmod-usb-core kmod-usb2
+  TPLINK_HWID := 0x08410008
+endef
+TARGET_DEVICES += pisen_wpr003n
+
 define Device/qihoo_c301
   $(Device/seama)
   SOC := ar9344
