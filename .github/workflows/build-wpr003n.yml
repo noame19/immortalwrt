@@ -1,0 +1,82 @@
+# 在 GitHub Actions 云端编译 PISEN WPR003N (immortalwrt 18.06, ath79/generic)
+#
+# 用法：
+#   1. 把本分支 (openwrt-18.06) push 到 GitHub
+#   2. Actions 页手动运行本 workflow (Run workflow)，或 push 触及 target/ 时自动触发
+#   3. 编译完成后在 Artifacts 下载 *pisen_wpr003n*-factory.bin / -sysupgrade.bin
+#
+# ⚠ 已知风险：OpenWrt 18.06 较老，host 工具链在过新的编译环境上可能编不过。
+#   本文件固定用 ubuntu-22.04（勿改 ubuntu-latest/24.04）。若仍在 host tools 阶段失败，
+#   退化方案：把 runs-on 换成 ubuntu-22.04 + 加 container: ubuntu:20.04，并在 steps 前补 apt 基础包。
+
+name: build-wpr003n
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - openwrt-18.06
+    paths:
+      - 'target/linux/ath79/**'
+      - '.github/workflows/build-wpr003n.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: 检出源码 (当前分支)
+        uses: actions/checkout@v4
+
+      - name: 清理磁盘空间
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h
+
+      - name: 安装编译依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential clang flex bison g++ gawk gcc-multilib g++-multilib \
+            gettext git libncurses5-dev libssl-dev rsync unzip zlib1g-dev file wget \
+            libelf-dev ecj fastjar java-propose-classpath python3 python3-distutils
+          # 18.06 部分脚本仍需 python2；ubuntu-22.04 universe 提供 python2
+          sudo apt-get install -y python2 || true
+
+      - name: 更新并安装 feeds
+        run: |
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+
+      - name: 生成 .config (仅 WPR003N)
+        run: |
+          cat > .config <<'EOF'
+          CONFIG_TARGET_ath79=y
+          CONFIG_TARGET_ath79_generic=y
+          CONFIG_TARGET_ath79_generic_DEVICE_pisen_wpr003n=y
+          EOF
+          make defconfig
+          echo "=== 确认 wpr003n 已被选中 ==="
+          grep -q "CONFIG_TARGET_ath79_generic_DEVICE_pisen_wpr003n=y" .config \
+            && echo "OK: wpr003n selected" \
+            || { echo "ERROR: wpr003n 未进入 .config"; exit 1; }
+
+      - name: 下载依赖包
+        run: make download -j8 V=s
+
+      - name: 编译固件
+        run: |
+          # 先并行编译；失败则单线程重跑一遍以打印详细错误日志
+          make -j$(nproc) || make -j1 V=s
+
+      - name: 上传固件
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wpr003n-firmware
+          path: |
+            bin/targets/ath79/generic/*pisen_wpr003n*
+          if-no-files-found: warn
