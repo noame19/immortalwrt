@@ -388,6 +388,11 @@ ath79_setup_interfaces()
 		ucidef_add_switch "switch0" \
 			"0@eth0" "3:lan:1" "5:lan:2" "4:wan"
 		;;
+	pisen,wpr003n)
+		ucidef_set_interface_wan "eth1"
+		ucidef_add_switch "switch0" \
+			"0@eth0" "1:lan"
+		;;
 	qihoo,c301)
 		ucidef_set_interface_wan "eth1"
 		ucidef_add_switch "switch0" \
