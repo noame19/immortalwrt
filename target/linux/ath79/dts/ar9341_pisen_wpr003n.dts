@@ -92,6 +92,7 @@
 };
 
 &eth1 {
+	compatible = "qca,ar9340-eth", "syscon", "simple-mfd";
 	phy-handle = <&swphy4>;
 	pll-data = <0x06000000 0x00000101 0x00001616>;
 	phy-mode = "gmii";
